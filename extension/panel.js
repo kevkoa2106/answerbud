@@ -117,13 +117,35 @@ function clearResult() {
 question.addEventListener('input', clearResult);
 options.addEventListener('input', clearResult);
 
-async function run(message, action) {
-  const buttons = [...document.querySelectorAll('button')];
+let operation;
+byId('cancel').addEventListener('click', () => {
+  revision++;
+  operation?.abort(new DOMException('Request cancelled.', 'AbortError'));
+});
+async function run(message, action, cancellable = true) {
+  if (operation) return;
+  const controller = new AbortController();
+  operation = controller;
+  const buttons = [...document.querySelectorAll('button:not(#cancel)')];
   buttons.forEach(button => button.disabled = true);
+  byId('cancel').hidden = !cancellable;
+  byId('elapsed').hidden = false;
+  const started = Date.now();
+  const tick = () => { byId('elapsed').textContent = `Elapsed: ${Math.floor((Date.now() - started) / 1000)}s`; };
+  tick();
+  const timer = setInterval(tick, 1000);
   status.textContent = message;
-  try { await action(); }
-  catch (error) { status.textContent = error.message; }
-  finally { buttons.forEach(button => button.disabled = false); }
+  try {
+    await Promise.race([action(controller.signal), new Promise((_, reject) => controller.signal.addEventListener('abort', () => reject(controller.signal.reason), { once: true }))]);
+  }
+  catch (error) { status.textContent = controller.signal.aborted ? 'Request cancelled. Ready to try again.' : error.message; }
+  finally {
+    clearInterval(timer);
+    operation = undefined;
+    byId('cancel').hidden = true;
+    byId('elapsed').hidden = true;
+    buttons.forEach(button => button.disabled = false);
+  }
 }
 
 byId('save').addEventListener('click', () => run('Saving settings…', async () => {
@@ -138,7 +160,7 @@ byId('save').addEventListener('click', () => run('Saving settings…', async () 
   await extensionApi.storage.local.set({ profiles: Object.fromEntries(providers.map(provider => [provider, publicProfile(profiles[provider])])), last_provider: selected.provider });
   status.textContent = selected.provider === 'laya' ? 'Token saved for this browser session; provider profile saved on this device.' : 'Provider profile saved on this device. Keys stay in this browser session.';
   byId('settings').open = false;
-}));
+}), false);
 
 function currentSettings() {
   return { provider: byId('provider').value, base_url: byId('base-url').value.trim(), model: byId('model').value.trim(), api_key: byId('api-key').value.trim(), structured_json: byId('structured-json').checked, no_thinking: byId('no-thinking').checked, max_tokens: Number(byId('max-tokens').value), input_mode: imageMode() ? 'image' : 'text' };
@@ -148,20 +170,23 @@ async function allowProvider(settings) {
   if (settings.provider !== 'laya' && !await extensionApi.permissions.request({ origins: [providerOrigin(settings)] })) throw new Error('Provider access was declined.');
 }
 
-byId('refresh-models').addEventListener('click', () => run('Loading available models…', async () => {
+byId('refresh-models').addEventListener('click', () => run('Loading available models…', async signal => {
   const settings = currentSettings();
   const currentRevision = revision;
   await allowProvider(settings);
-  const models = await listProviderModels(settings);
+  signal.throwIfAborted();
+  const models = await listProviderModels(settings, fetch, signal);
+  signal.throwIfAborted();
   if (revision !== currentRevision) return;
   byId('model-list').replaceChildren(...models.map(model => { const option = document.createElement('option'); option.value = model; return option; }));
   status.textContent = models.length ? `${models.length} models available. Choose a model or enter its identifier.` : 'No models available. Load or download a model in your server, then retry.';
 }));
 
-byId('test-provider').addEventListener('click', () => run('Testing provider settings…', async () => {
+byId('test-provider').addEventListener('click', () => run('Testing provider settings…', async signal => {
   const settings = currentSettings();
   const currentRevision = revision;
   await allowProvider(settings);
+  signal.throwIfAborted();
   const payload = { ...settings, question: 'What is 2 + 2?', options: ['4', '5'] };
   if (settings.input_mode === 'image') {
     const canvas = document.createElement('canvas');
@@ -172,12 +197,14 @@ byId('test-provider').addEventListener('click', () => run('Testing provider sett
     context.fillText('What is 2 + 2?', 20, 45); context.fillText('A. 4     B. 5', 20, 110);
     payload.image = canvas.toDataURL('image/jpeg', .9);
   }
-  if (settings.provider === 'laya') await request('/analyze', payload, token.value);
-  else await analyzeProvider(payload);
+  if (settings.provider === 'laya') await request('/analyze', payload, token.value, fetch, signal);
+  else await analyzeProvider(payload, fetch, signal);
+  signal.throwIfAborted();
   if (revision === currentRevision) status.textContent = 'Connection works. The model returned valid answer data with these settings.';
 }));
 
-async function compare(currentRevision) {
+async function compare(currentRevision, signal) {
+  signal.throwIfAborted();
   status.textContent = byId('provider').value === 'laya' ? 'Laya is comparing the answers. First use may download a model…' : 'Your selected model is comparing the answers…';
   const choices = parseOptions(options.value);
   if (imageMode()) {
@@ -185,7 +212,9 @@ async function compare(currentRevision) {
   } else validateInput(question.value, choices);
   const payload = { question: question.value.trim(), options: choices, provider: byId('provider').value, base_url: byId('base-url').value.trim(), model: byId('model').value.trim(), api_key: byId('api-key').value.trim(), structured_json: byId('structured-json').checked, no_thinking: byId('no-thinking').checked, max_tokens: Number(byId('max-tokens').value), input_mode: imageMode() ? 'image' : 'text', ...(imageMode() ? { image: capturedImage } : {}) };
   if (payload.provider !== 'laya' && !await extensionApi.permissions.contains({ origins: [providerOrigin(payload)] })) throw new Error('Save settings and allow access to the selected provider first.');
-  const result = payload.provider === 'laya' ? await request('/analyze', payload, token.value) : await analyzeProvider(payload);
+  signal.throwIfAborted();
+  const result = payload.provider === 'laya' ? await request('/analyze', payload, token.value, fetch, signal) : await analyzeProvider(payload, fetch, signal);
+  signal.throwIfAborted();
   if (revision !== currentRevision) { status.textContent = 'Question changed during analysis. Compare it again.'; return; }
   if (result.input_mode === 'image') {
     question.value = result.question;
@@ -202,7 +231,7 @@ async function compare(currentRevision) {
   status.textContent = `Compared with ${result.model}; ${result.method || 'averaged across answer orders'}.`;
 }
 
-byId('capture').addEventListener('click', () => run('Reading the visible page…', async () => {
+byId('capture').addEventListener('click', () => run('Reading the visible page…', async signal => {
   clearResult();
   const currentRevision = revision;
   let result;
@@ -231,14 +260,14 @@ byId('capture').addEventListener('click', () => run('Reading the visible page…
     }
     throw error;
   }
-  await compare(currentRevision);
+  await compare(currentRevision, signal);
 }));
 
 byId('question-form').addEventListener('submit', event => {
   event.preventDefault();
-  run('Comparing answers…', async () => {
+  run('Comparing answers…', async signal => {
     clearResult();
-    await compare(revision);
+    await compare(revision, signal);
   });
 });
 

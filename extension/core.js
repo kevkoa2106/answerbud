@@ -9,15 +9,17 @@ export function validateInput(question, options) {
   if (new Set(options.map(value => value.toLowerCase())).size !== options.length) throw new Error('Answer options must be distinct.');
 }
 
-export async function request(path, payload, token, fetcher = fetch) {
+export async function request(path, payload, token, fetcher = fetch, signal) {
   if (!token.trim()) throw new Error('Paste the service token into settings first.');
   let response;
   try {
+    const timeout = AbortSignal.timeout(600000);
     response = await fetcher(`http://127.0.0.1:8765${path}`, {
       method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token.trim()}` },
-      body: JSON.stringify(payload), signal: AbortSignal.timeout(600000)
+      body: JSON.stringify(payload), signal: signal ? AbortSignal.any([signal, timeout]) : timeout
     });
   } catch (error) {
+    if (signal?.aborted) throw signal.reason;
     throw new Error(error.name === 'TimeoutError' ? 'Processing timed out. Check the service terminal and try again.' :
       'Cannot reach the local service. Start it, then try again.');
   }

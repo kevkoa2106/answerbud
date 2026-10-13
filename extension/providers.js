@@ -16,13 +16,14 @@ export function providerOrigin(settings) {
   return `${url.protocol}//${url.hostname}/*`;
 }
 
-export async function listProviderModels(settings, fetcher = fetch) {
+export async function listProviderModels(settings, fetcher = fetch, signal) {
   const endpoint = providerEndpoint(settings).replace(/(?:chat\/completions|api\/chat|messages)$/, settings.provider === 'ollama' ? 'api/tags' : 'models');
   const key = settings.api_key?.trim() || '';
   if (['openai', 'anthropic'].includes(settings.provider) && !key) throw new Error('Enter your provider API key first.');
   if (key.length > 512 || /[\r\n]/.test(key)) throw new Error('Invalid API key.');
   const headers = settings.provider === 'anthropic' ? { 'x-api-key': key, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' } : key ? { Authorization: `Bearer ${key}` } : {};
-  const response = await fetcher(endpoint, { headers, redirect: 'error', credentials: 'omit', signal: AbortSignal.timeout(15000) });
+  const timeout = AbortSignal.timeout(15000);
+  const response = await fetcher(endpoint, { headers, redirect: 'error', credentials: 'omit', signal: signal ? AbortSignal.any([signal, timeout]) : timeout });
   if (!response.ok) throw new Error(`Model list returned HTTP ${response.status}. Check the server, key, and browser access settings.`);
   const result = await response.json();
   const rows = settings.provider === 'ollama' ? result.models : result.data;
@@ -59,7 +60,7 @@ export function decodeAnswer(content, payload) {
   };
 }
 
-export async function analyzeProvider(payload, fetcher = fetch) {
+export async function analyzeProvider(payload, fetcher = fetch, signal) {
   const endpoint = providerEndpoint(payload);
   const model = payload.model?.trim();
   if (!model || model.length > 200) throw new Error('Enter a model identifier in settings.');
@@ -120,8 +121,10 @@ export async function analyzeProvider(payload, fetcher = fetch) {
   }
   let response;
   try {
-    response = await fetcher(endpoint, { method: 'POST', headers, body: JSON.stringify(body), redirect: 'error', credentials: 'omit', signal: AbortSignal.timeout(300000) });
+    const timeout = AbortSignal.timeout(300000);
+    response = await fetcher(endpoint, { method: 'POST', headers, body: JSON.stringify(body), redirect: 'error', credentials: 'omit', signal: signal ? AbortSignal.any([signal, timeout]) : timeout });
   } catch (error) {
+    if (signal?.aborted) throw signal.reason;
     throw new Error(error.name === 'TimeoutError' ? 'The model request timed out. Try a smaller model or output limit.' : 'Cannot reach the selected provider. Check its server, permissions, and connection.');
   }
   if (!response.ok) throw new Error(payload.provider === 'ollama' && response.status === 403 ? 'Ollama rejected browser access. Allow chrome-extension://* and moz-extension://* in OLLAMA_ORIGINS, then restart Ollama.' : `Provider returned HTTP ${response.status}. Check the model, API key, billing, and supported options.`);
