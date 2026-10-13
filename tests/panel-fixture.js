@@ -34,4 +34,5 @@ test.beforeEach(async ({ page, browserName }) => {
     if (isFirefox) window.browser = window.chrome;
   }, { isFirefox: browserName === 'firefox', screenshot });
   await page.goto('/panel.html');
+  await page.evaluate(() => import('./panel.js').then(() => true));
 });
