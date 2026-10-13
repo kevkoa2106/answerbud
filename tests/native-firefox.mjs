@@ -1,0 +1,66 @@
+import assert from 'node:assert/strict';
+import path from 'node:path';
+import { Builder, By } from 'selenium-webdriver';
+import { Options } from 'selenium-webdriver/firefox.js';
+import { startQuizFixture } from './native-fixture.js';
+
+const server = await startQuizFixture();
+let driver;
+try {
+  const options = new Options().addArguments('-headless', '-remote-allow-system-access');
+  if (process.env.FIREFOX_BINARY) options.setBinary(process.env.FIREFOX_BINARY);
+  driver = await new Builder().forBrowser('firefox').setFirefoxOptions(options).build();
+  const addon = await driver.installWebExtension(path.resolve('dist/quizlens-firefox.zip'), { permanent: false });
+  assert.equal(addon.id, 'quizlens@kevkoa2106.github.io');
+  await driver.setContext('chrome');
+  const uuid = await driver.executeScript('return JSON.parse(Services.prefs.getStringPref("extensions.webextensions.uuids"))[arguments[0]];', addon.id);
+  assert.ok(uuid, 'Firefox must register the installed add-on');
+  await driver.setContext('content');
+  await driver.get(`moz-extension://${uuid}/panel.html`);
+  const result = await driver.executeAsyncScript(function () {
+    const done = arguments[arguments.length - 1];
+    (async () => {
+      await import(browser.runtime.getURL('panel.js'));
+      const { captureDOM } = await import(browser.runtime.getURL('dom.js'));
+      const { publicProfile } = await import(browser.runtime.getURL('profiles.js'));
+      const granted = await browser.permissions.contains({ origins: ['http://127.0.0.1:8765/*'] });
+      const denied = await browser.permissions.contains({ origins: ['http://localhost:1234/*'] });
+      const tab = await browser.tabs.create({ url: 'http://127.0.0.1:8765/quiz', active: false });
+      let captured;
+      try {
+        for (let attempt = 0; attempt < 50; attempt++) {
+          const frames = await browser.scripting.executeScript({ target: { tabId: tab.id }, func: captureDOM });
+          captured = frames[0].result;
+          if (captured.question) break;
+          await new Promise(resolve => setTimeout(resolve, 100));
+        }
+      } finally { await browser.tabs.remove(tab.id); }
+      const profiles = { local_api: publicProfile({ model: 'native-model', api_key: 'private-native-key' }) };
+      await browser.storage.local.set({ profiles, last_provider: 'local_api' });
+      await browser.storage.session.set({ credentials: { local_api: { api_key: 'private-native-key' } } });
+      return { captured, granted, denied, manifest: browser.runtime.getManifest(), local: await browser.storage.local.get(null) };
+    })().then(done, error => done({ error: error.message }));
+  });
+  assert.equal(result.error, undefined);
+  assert.equal(result.manifest.sidebar_action.default_panel, 'panel.html');
+  assert.equal(result.manifest.background.service_worker, undefined);
+  assert.equal(result.granted, true);
+  assert.equal(result.denied, false);
+  assert.deepEqual(result.captured.options, ['Ciphertext', 'Plaintext']);
+  assert.equal(result.captured.question, 'Output of encryption?');
+  assert.ok(!result.captured.raw_text.includes('private form value'));
+  assert.ok(!JSON.stringify(result.local).includes('private-native-key'));
+  await driver.navigate().refresh();
+  await driver.executeAsyncScript(function () { const done = arguments[arguments.length - 1]; import(browser.runtime.getURL('panel.js')).then(() => done(true)); });
+  assert.equal(await driver.findElement(By.id('model')).getAttribute('value'), 'native-model');
+  assert.equal(await driver.findElement(By.id('api-key')).getAttribute('value'), 'private-native-key');
+  await driver.executeAsyncScript(function () { const done = arguments[arguments.length - 1]; browser.storage.session.clear().then(() => done(true)); });
+  await driver.navigate().refresh();
+  await driver.executeAsyncScript(function () { const done = arguments[arguments.length - 1]; import(browser.runtime.getURL('panel.js')).then(() => done(true)); });
+  assert.equal(await driver.findElement(By.id('model')).getAttribute('value'), 'native-model');
+  assert.equal(await driver.findElement(By.id('api-key')).getAttribute('value'), '');
+  console.log('PASS: installed Firefox ZIP, sidebar manifest, real DOM capture, host permissions and credential separation.');
+} finally {
+  if (driver) await driver.quit();
+  await new Promise(resolve => server.close(resolve));
+}

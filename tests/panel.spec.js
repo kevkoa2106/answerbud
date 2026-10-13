@@ -2,6 +2,7 @@ import { test, expect, chromium } from './panel-fixture.js';
 import path from 'node:path';
 import os from 'node:os';
 import fs from 'node:fs/promises';
+import { startQuizFixture } from './native-fixture.js';
 
 test('themes apply immediately, persist, and retain readable contrast in light and dark modes', async ({ page }) => {
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'green');
@@ -255,10 +256,11 @@ test('edits during inference discard the response', async ({ page }) => {
   await expect(page.locator('#answers li')).toHaveCount(0);
 });
 
-test('actual extension loads its worker and registers the side panel', async ({ browserName }) => {
-  test.skip(browserName !== 'chromium', 'The Firefox package is checked separately; Playwright cannot install Firefox add-ons.');
+test('built Chrome extension uses native capture, permissions and credential storage', async ({ browserName }) => {
+  test.skip(browserName !== 'chromium', 'Installed Firefox is tested separately with WebDriver.');
+  const server = await startQuizFixture();
   const profile = await fs.mkdtemp(path.join(os.tmpdir(), 'laya-extension-'));
-  const extensionPath = path.resolve('extension');
+  const extensionPath = path.resolve('dist/chrome');
   const context = await chromium.launchPersistentContext(profile, {
     headless: true, channel: 'chromium',
     args: [`--disable-extensions-except=${extensionPath}`, `--load-extension=${extensionPath}`]
@@ -283,19 +285,40 @@ test('actual extension loads its worker and registers the side panel', async ({ 
     await panel.locator('#token').fill('smoke-token');
     await panel.locator('#save').click();
     expect(await worker.evaluate(async () => (await chrome.storage.session.get('token')).token)).toBe('smoke-token');
-    await panel.locator('#settings summary').click();
-    await panel.locator('#provider').selectOption('local_api');
-    await panel.locator('#model').fill('saved-local-model');
-    await panel.evaluate(() => { chrome.permissions.request = async () => true; });
-    await panel.locator('#save').click();
+    const quiz = await context.newPage();
+    await quiz.goto('http://127.0.0.1:8765/quiz');
+    const captured = await panel.evaluate(async () => {
+      const { captureDOM } = await import('./dom.js');
+      const [tab] = await chrome.tabs.query({ url: 'http://127.0.0.1:8765/*' });
+      return (await chrome.scripting.executeScript({ target: { tabId: tab.id }, func: captureDOM }))[0].result;
+    });
+    expect(captured).toMatchObject({ question: 'Output of encryption?', options: ['Ciphertext', 'Plaintext'] });
+    expect(captured.raw_text).not.toContain('private form value');
+    expect(await worker.evaluate(() => chrome.permissions.contains({ origins: ['http://127.0.0.1:8765/*'] }))).toBe(true);
+    expect(await worker.evaluate(() => chrome.permissions.contains({ origins: ['http://localhost:1234/*'] }))).toBe(false);
+    await panel.evaluate(async () => {
+      const { publicProfile } = await import('./profiles.js');
+      await chrome.storage.local.set({ profiles: { local_api: publicProfile({ model: 'saved-local-model', api_key: 'private-native-key' }) }, last_provider: 'local_api' });
+      await chrome.storage.session.clear();
+      await chrome.storage.session.set({ credentials: { local_api: { api_key: 'private-native-key' } } });
+    });
     await panel.reload();
+    await panel.evaluate(() => import('./panel.js').then(() => true));
     await panel.locator('#settings summary').click();
     await expect(panel.locator('#provider')).toHaveValue('local_api');
     await expect(panel.locator('#local-settings')).toBeVisible();
     await expect(panel.locator('#model')).toHaveValue('saved-local-model');
+    await expect(panel.locator('#api-key')).toHaveValue('private-native-key');
+    expect(JSON.stringify(await worker.evaluate(() => chrome.storage.local.get(null)))).not.toContain('private-native-key');
+    await worker.evaluate(() => chrome.storage.session.clear());
+    await panel.reload();
+    await panel.evaluate(() => import('./panel.js').then(() => true));
+    await expect(panel.locator('#model')).toHaveValue('saved-local-model');
+    await expect(panel.locator('#api-key')).toHaveValue('');
   } finally {
     await context.close();
     await fs.rm(profile, { recursive: true, force: true });
+    await new Promise(resolve => server.close(resolve));
   }
 });
 
