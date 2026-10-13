@@ -1,15 +1,15 @@
 import assert from 'node:assert/strict';
 import path from 'node:path';
 import { Builder, By } from 'selenium-webdriver';
-import { Options } from 'selenium-webdriver/firefox.js';
+import { Options, ServiceBuilder } from 'selenium-webdriver/firefox.js';
 import { startQuizFixture } from './native-fixture.js';
 
 const server = await startQuizFixture();
 let driver;
 try {
-  const options = new Options().addArguments('-headless', '-remote-allow-system-access');
+  const options = new Options().addArguments('-headless');
   if (process.env.FIREFOX_BINARY) options.setBinary(process.env.FIREFOX_BINARY);
-  driver = await new Builder().forBrowser('firefox').setFirefoxOptions(options).build();
+  driver = await new Builder().forBrowser('firefox').setFirefoxOptions(options).setFirefoxService(new ServiceBuilder().addArguments('--allow-system-access')).build();
   const addon = await driver.installWebExtension(path.resolve('dist/quizlens-firefox.zip'), { permanent: false });
   assert.equal(addon.id, 'quizlens@kevkoa2106.github.io');
   await driver.setContext('chrome');
