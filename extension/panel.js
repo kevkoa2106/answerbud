@@ -37,7 +37,7 @@ function updateProvider() {
   byId('endpoint-settings').hidden = cloud;
   byId('thinking-settings').hidden = cloud;
   byId('json-settings').hidden = provider === 'anthropic';
-  byId('provider-note').textContent = cloud ? 'Captured questions and images are sent to this provider using your API key. API usage may incur charges. Your key stays in this browser session; QuizLens has no shared server.' : provider === 'laya' ? 'Laya needs the Python service on this computer. Its token protects the service from website requests.' : 'Calls your model server directly. No QuizLens service or token is needed.';
+  byId('provider-note').textContent = cloud ? 'Captured questions and images are sent to this provider using your API key. API usage may incur charges. Your key stays in this browser session; AnswerBud has no shared server.' : provider === 'laya' ? 'Laya needs the Python service on this computer. Its token protects the service from website requests.' : 'Calls your model server directly. No AnswerBud service or token is needed.';
   byId('api-key-label').textContent = cloud ? 'Provider API key' : 'API key (optional)';
   updateInputMode();
   byId('model-list').replaceChildren();
@@ -262,7 +262,7 @@ byId('capture').addEventListener('click', () => run('Reading the visible page…
     }
   } catch (error) {
     if (/activeTab|<all_urls>|Cannot access|cannot be scripted|Missing host permission/i.test(error.message)) {
-      throw new Error('Click the QuizLens extension icon in Chrome’s toolbar while viewing this quiz tab, then click Capture this tab again. Switching tabs or websites requires another toolbar click. Chrome internal pages cannot be read.');
+      throw new Error('Click the AnswerBud extension icon in Chrome’s toolbar while viewing this quiz tab, then click Capture this tab again. Switching tabs or websites requires another toolbar click. Chrome internal pages cannot be read.');
     }
     throw error;
   }

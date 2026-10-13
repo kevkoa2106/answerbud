@@ -267,7 +267,7 @@ test('built Chrome extension uses native capture, permissions and credential sto
   });
   try {
     const worker = context.serviceWorkers()[0] || await context.waitForEvent('serviceworker');
-    expect(await worker.evaluate(() => chrome.runtime.getManifest().name)).toBe('QuizLens');
+    expect(await worker.evaluate(() => chrome.runtime.getManifest().name)).toBe('AnswerBud');
     const settings = await worker.evaluate(() => chrome.sidePanel.getOptions({}));
     expect(settings.path).toBe('panel.html');
     const extensionId = new URL(worker.url()).hostname;

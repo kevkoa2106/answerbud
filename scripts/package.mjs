@@ -16,7 +16,7 @@ async function collect(directory, prefix = '') {
 
 for (const target of ['chrome', 'firefox']) {
   const files = await collect(new URL(`../dist/${target}/`, import.meta.url));
-  const output = new URL(`../dist/quizlens-${target}.zip`, import.meta.url);
+  const output = new URL(`../dist/answerbud-${target}.zip`, import.meta.url);
   await writeFile(output, zipSync(files));
-  console.log(`Created dist/quizlens-${target}.zip`);
+  console.log(`Created dist/answerbud-${target}.zip`);
 }

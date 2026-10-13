@@ -10,7 +10,7 @@ try {
   const options = new Options().addArguments('-headless');
   if (process.env.FIREFOX_BINARY) options.setBinary(process.env.FIREFOX_BINARY);
   driver = await new Builder().forBrowser('firefox').setFirefoxOptions(options).setFirefoxService(new ServiceBuilder().addArguments('--allow-system-access')).build();
-  const addon = await driver.installWebExtension(path.resolve('dist/quizlens-firefox.zip'), { permanent: false });
+  const addon = await driver.installWebExtension(path.resolve('dist/answerbud-firefox.zip'), { permanent: false });
   assert.equal(addon.id, 'quizlens@kevkoa2106.github.io');
   await driver.setContext('chrome');
   const uuid = await driver.executeScript('return JSON.parse(Services.prefs.getStringPref("extensions.webextensions.uuids"))[arguments[0]];', addon.id);

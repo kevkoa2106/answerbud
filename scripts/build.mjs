@@ -14,7 +14,7 @@ for (const target of ['chrome', 'firefox']) {
     });
     manifest.permissions = manifest.permissions.filter(value => value !== 'sidePanel');
     manifest.background = { scripts: ['background.js'] };
-    manifest.sidebar_action = { default_panel: 'panel.html', default_title: 'QuizLens' };
+    manifest.sidebar_action = { default_panel: 'panel.html', default_title: 'AnswerBud' };
     manifest.browser_specific_settings = { gecko: {
       id: 'quizlens@kevkoa2106.github.io', strict_min_version: '142.0',
       data_collection_permissions: { required: ['websiteContent', 'authenticationInfo'] }

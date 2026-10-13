@@ -9,6 +9,10 @@ before(() => execFileSync(process.execPath, ['scripts/package.mjs']));
 test('Chrome and Firefox packages use their own supported sidebar manifests', () => {
   const chrome = JSON.parse(readFileSync('dist/chrome/manifest.json'));
   const firefox = JSON.parse(readFileSync('dist/firefox/manifest.json'));
+  assert.equal(chrome.name, 'AnswerBud');
+  assert.equal(firefox.name, 'AnswerBud');
+  assert.equal(chrome.action.default_title, 'Open AnswerBud');
+  assert.equal(firefox.sidebar_action.default_title, 'AnswerBud');
   assert.ok(chrome.background.service_worker);
   assert.ok(chrome.permissions.includes('sidePanel'));
   assert.equal(chrome.side_panel.default_path, 'panel.html');
@@ -24,7 +28,7 @@ test('Chrome and Firefox packages use their own supported sidebar manifests', ()
 test('store ZIPs contain runtime files and a browser-specific manifest at the root', () => {
   const expectedFiles = ['LICENSE', 'background.js', 'browser-api.js', 'core.js', 'dom.js', 'manifest.json', 'panel.css', 'panel.html', 'panel.js', 'profiles.js', 'providers.js'];
   for (const target of ['chrome', 'firefox']) {
-    const files = unzipSync(readFileSync(`dist/quizlens-${target}.zip`));
+    const files = unzipSync(readFileSync(`dist/answerbud-${target}.zip`));
     assert.deepEqual(Object.keys(files).sort(), expectedFiles);
     const manifest = JSON.parse(strFromU8(files['manifest.json']));
     assert.equal(manifest.version, JSON.parse(readFileSync('extension/manifest.json')).version);

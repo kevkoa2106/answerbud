@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
-  "name": "QuizLens",
-  "version": "0.6.1",
+  "name": "AnswerBud",
+  "version": "0.6.2",
   "description": "Read quiz questions and compare answers with local models or your chosen API provider.",
   "permissions": [
     "activeTab",
@@ -19,7 +19,7 @@
     "https://api.anthropic.com/*"
   ],
   "action": {
-    "default_title": "Open QuizLens"
+    "default_title": "Open AnswerBud"
   },
   "background": {
     "service_worker": "background.js"
