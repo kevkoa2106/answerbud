@@ -17,7 +17,7 @@ export function providerOrigin(settings) {
 }
 
 export async function listProviderModels(settings, fetcher = fetch) {
-  const endpoint = providerEndpoint(settings).replace(/(?:chat\/completions|api\/chat)$/, settings.provider === 'ollama' ? 'api/tags' : 'models');
+  const endpoint = providerEndpoint(settings).replace(/(?:chat\/completions|api\/chat|messages)$/, settings.provider === 'ollama' ? 'api/tags' : 'models');
   const key = settings.api_key?.trim() || '';
   if (['openai', 'anthropic'].includes(settings.provider) && !key) throw new Error('Enter your provider API key first.');
   if (key.length > 512 || /[\r\n]/.test(key)) throw new Error('Invalid API key.');
@@ -27,7 +27,7 @@ export async function listProviderModels(settings, fetcher = fetch) {
   const result = await response.json();
   const rows = settings.provider === 'ollama' ? result.models : result.data;
   if (!Array.isArray(rows)) throw new Error('The provider returned an invalid model list. You can enter a model identifier manually.');
-  return [...new Set(rows.map(row => settings.provider === 'ollama' ? row.name : row.id).filter(id => typeof id === 'string' && id.length > 0 && id.length <= 200))].sort();
+  return [...new Set(rows.map(row => settings.provider === 'ollama' ? row?.name : row?.id).filter(id => typeof id === 'string' && id.length > 0 && id.length <= 200))].sort();
 }
 
 export function decodeAnswer(content, payload) {
