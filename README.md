@@ -13,6 +13,7 @@ Read a multiple-choice question from your browser tab and compare answers with a
 - [Models](#models)
 - [Laya setup](#laya-setup-optional)
 - [Data and limits](#data-and-limits)
+- [Tech stack used](#tech-stack-used)
 - [Development](#development)
 - [Tests](VERIFICATION.md)
 - [Privacy policy](PRIVACY.md)
@@ -81,6 +82,16 @@ Provider profiles and the colour scheme stay on this device. Keys and tokens las
 See the [privacy policy](PRIVACY.md) for data handling and deletion controls.
 
 Scores are model estimates, not calibrated probabilities. Tied choices are tentative. Unusual layouts may need manual correction or image mode. After changing tabs or websites, click the toolbar icon again to grant capture access.
+
+## Tech stack used
+
+| Area | Technology |
+| --- | --- |
+| Extension | JavaScript modules, HTML, CSS, Manifest V3, Chrome and Firefox extension APIs |
+| Model providers | LM Studio / OpenAI-compatible APIs, Ollama, OpenAI, Anthropic |
+| Optional Laya service | Python, Laya, Pillow, pytesseract and Tesseract |
+| Build and packaging | Node.js, npm, fflate, Mozilla addons-linter |
+| Tests and CI | Node.js test runner, Playwright, Python unittest, GitHub Actions |
 
 ## Development
 
