@@ -1,9 +1,10 @@
-import { test, expect, chromium } from '@playwright/test';
+import { test as base, expect, chromium } from '@playwright/test';
 import fs from 'node:fs/promises';
 
-export { test, expect, chromium };
+export { expect, chromium };
 
-test.beforeEach(async ({ page, browserName }) => {
+export const test = base.extend({
+  panelSetup: [async ({ page, browserName }, use) => {
   const screenshot = 'data:image/png;base64,' + (await fs.readFile('tests/quiz.png')).toString('base64');
   await page.addInitScript(({ isFirefox, screenshot }) => {
     function getStored(area, keys) {
@@ -35,4 +36,6 @@ test.beforeEach(async ({ page, browserName }) => {
   }, { isFirefox: browserName === 'firefox', screenshot });
   await page.goto('/panel.html');
   await page.evaluate(() => import('./panel.js').then(() => true));
+  await use();
+  }, { auto: true }]
 });
