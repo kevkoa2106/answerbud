@@ -17,6 +17,11 @@ try {
   assert.ok(uuid, 'Firefox must register the installed add-on');
   await driver.setContext('content');
   await driver.get(`moz-extension://${uuid}/panel.html`);
+  const panelHandle = await driver.getWindowHandle();
+  await driver.switchTo().newWindow('tab');
+  await driver.get('http://127.0.0.1:8765/quiz');
+  assert.equal(await driver.findElement(By.css('h2')).getText(), 'Output of encryption?');
+  await driver.switchTo().window(panelHandle);
   const result = await driver.executeAsyncScript(function () {
     const done = arguments[arguments.length - 1];
     (async () => {
@@ -26,24 +31,10 @@ try {
       const granted = await browser.permissions.contains({ origins: ['http://127.0.0.1:8765/*'] });
       const denied = await browser.permissions.contains({ origins: ['http://localhost:1234/*'] });
       if (!granted) throw new Error('The installed add-on has not received its required fixture host permission.');
-      const tab = await browser.tabs.create({ url: 'http://127.0.0.1:8765/quiz', active: true });
-      let captured;
-      try {
-        for (let attempt = 0; attempt < 50; attempt++) {
-          try {
-            const frames = await browser.scripting.executeScript({ target: { tabId: tab.id }, func: captureDOM });
-            captured = frames[0].result;
-          } catch (error) {
-            if (!/Missing host permission/.test(error.message)) throw error;
-          }
-          if (captured?.question) break;
-          await new Promise(resolve => setTimeout(resolve, 100));
-        }
-        if (!captured?.question) {
-          const current = await browser.tabs.get(tab.id);
-          throw new Error(`Fixture capture did not become ready: ${JSON.stringify({ status: current.status, url: current.url, captured })}`);
-        }
-      } finally { await browser.tabs.remove(tab.id); }
+      const [tab] = await browser.tabs.query({ url: 'http://127.0.0.1:8765/*' });
+      if (!tab) throw new Error('Firefox did not expose the loaded fixture tab to its granted host permission.');
+      const frames = await browser.scripting.executeScript({ target: { tabId: tab.id }, func: captureDOM });
+      const captured = frames[0].result;
       const profiles = { local_api: publicProfile({ model: 'native-model', api_key: 'private-native-key' }) };
       await browser.storage.local.set({ profiles, last_provider: 'local_api' });
       await browser.storage.session.set({ credentials: { local_api: { api_key: 'private-native-key' } } });
