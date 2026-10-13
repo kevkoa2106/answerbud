@@ -8,10 +8,17 @@ test.beforeEach(async ({ page, browserName }) => {
   await page.addInitScript(({ isFirefox, screenshot }) => {
     window.chrome = {
       storage: {
-        session: { get: async () => ({ provider: 'laya' }), set: async settings => { window.savedSettings = settings; } },
+        session: {
+          get: async () => ({ provider: 'laya', ...JSON.parse(sessionStorage.getItem('test-session') || '{}') }),
+          set: async settings => { window.savedSettings = settings; sessionStorage.setItem('test-session', JSON.stringify({ ...JSON.parse(sessionStorage.getItem('test-session') || '{}'), ...settings })); }
+        },
         local: {
-          get: async () => ({ theme: sessionStorage.getItem('test-theme') }),
-          set: async settings => { sessionStorage.setItem('test-theme', settings.theme); }
+          get: async () => ({ theme: sessionStorage.getItem('test-theme'), ...JSON.parse(sessionStorage.getItem('test-local') || '{}') }),
+          set: async settings => {
+            if (settings.theme) sessionStorage.setItem('test-theme', settings.theme);
+            const stored = { ...JSON.parse(sessionStorage.getItem('test-local') || '{}'), ...settings };
+            sessionStorage.setItem('test-local', JSON.stringify(stored)); window.savedLocal = stored;
+          }
         }
       },
       permissions: { contains: async () => true, request: async request => { window.requestedOrigins = request.origins; return true; } },

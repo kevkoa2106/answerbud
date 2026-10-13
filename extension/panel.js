@@ -160,7 +160,7 @@ byId('save').addEventListener('click', () => run('Saving settings…', async () 
   await extensionApi.storage.local.set({ profiles: Object.fromEntries(providers.map(provider => [provider, publicProfile(profiles[provider])])), last_provider: selected.provider });
   status.textContent = selected.provider === 'laya' ? 'Token saved for this browser session; provider profile saved on this device.' : 'Provider profile saved on this device. Keys stay in this browser session.';
   byId('settings').open = false;
-}), false);
+}, false));
 
 function currentSettings() {
   return { provider: byId('provider').value, base_url: byId('base-url').value.trim(), model: byId('model').value.trim(), api_key: byId('api-key').value.trim(), structured_json: byId('structured-json').checked, no_thinking: byId('no-thinking').checked, max_tokens: Number(byId('max-tokens').value), input_mode: imageMode() ? 'image' : 'text' };
@@ -240,12 +240,14 @@ byId('capture').addEventListener('click', () => run('Reading the visible page…
       capturedImage = '';
       byId('image-preview').hidden = true;
       const image = await prepareImage(await extensionApi.tabs.captureVisibleTab(undefined, { format: 'png' }));
+      signal.throwIfAborted();
       if (revision !== currentRevision) { status.textContent = 'Input changed during capture. Capture again when ready.'; return; }
       setImage(image);
     } else {
       const [tab] = await extensionApi.tabs.query({ active: true, currentWindow: true });
       if (!tab?.id) throw new Error('Open a quiz tab before capturing.');
       const frames = await extensionApi.scripting.executeScript({ target: { tabId: tab.id }, func: captureDOM });
+      signal.throwIfAborted();
       result = frames[0]?.result;
       if (!result) throw new Error('Could not read this page. Enter the question below or use Image mode.');
       if (revision !== currentRevision) { status.textContent = 'Text changed during capture. Capture again when ready.'; return; }
@@ -271,7 +273,7 @@ byId('question-form').addEventListener('submit', event => {
   });
 });
 
-byId('image-upload').addEventListener('change', () => run('Loading image…', async () => {
+byId('image-upload').addEventListener('change', () => run('Loading image…', async signal => {
   clearResult();
   capturedImage = '';
   byId('image-preview').hidden = true;
@@ -285,7 +287,9 @@ byId('image-upload').addEventListener('change', () => run('Loading image…', as
     reader.onerror = () => reject(new Error('Could not read this image.'));
     reader.readAsDataURL(file);
   });
+  signal.throwIfAborted();
   const image = await prepareImage(data);
+  signal.throwIfAborted();
   if (revision !== currentRevision) { status.textContent = 'Input changed while loading the image. Choose it again.'; return; }
   setImage(image);
   status.textContent = 'Image loaded. Compare with a vision-capable local model.';
