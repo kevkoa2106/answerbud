@@ -63,7 +63,7 @@ test('cancelled model discovery cannot replace a newer model list', async ({ pag
     let calls = 0;
     window.fetch = async () => {
       calls++;
-      if (calls === 1) return new Promise(resolve => { window.finishOldModels = () => resolve(Response.json({ data: [{ id: 'old-model' }] } })); });
+      if (calls === 1) return new Promise(resolve => { window.finishOldModels = () => resolve(Response.json({ data: [{ id: 'old-model' }] })); });
       return Response.json({ data: [{ id: 'new-model' }] });
     };
   });
