@@ -20,6 +20,37 @@ test('model discovery uses each provider endpoint and credentials without forwar
   await assert.rejects(listProviderModels(payload, async () => Response.json({})), /invalid model list/);
 });
 
+test('model discovery handles empty, malformed, denied and interrupted responses', async () => {
+  assert.deepEqual(await listProviderModels(payload, async () => Response.json({ data: [] })), []);
+  assert.deepEqual(await listProviderModels(payload, async () => Response.json({ data: [null, {}, { id: 2 }, { id: '' }, { id: 'x'.repeat(201) }, { id: 'valid' }, { id: 'valid' }] })), ['valid']);
+  for (const status of [401, 403, 500]) {
+    await assert.rejects(listProviderModels(payload, async () => new Response('', { status })), new RegExp(`HTTP ${status}`));
+  }
+  await assert.rejects(listProviderModels(payload, async () => new Response('not JSON')), SyntaxError);
+  await assert.rejects(listProviderModels(payload, async () => { throw new DOMException('Timed out', 'TimeoutError'); }), { name: 'TimeoutError' });
+  const controller = new AbortController();
+  const pending = listProviderModels(payload, (_, init) => new Promise((_, reject) => init.signal.addEventListener('abort', () => reject(init.signal.reason), { once: true })), controller.signal);
+  controller.abort(new DOMException('Cancelled', 'AbortError'));
+  await assert.rejects(pending, { name: 'AbortError' });
+});
+
+test('oversized completion responses never become answer data', async () => {
+  await assert.rejects(analyzeProvider(payload, async () => new Response('x'.repeat(1024 * 1024 + 1))), /too large/);
+});
+
+test('cancellation during response reading retains its abort reason', async () => {
+  const controller = new AbortController();
+  let started;
+  const reading = new Promise(resolve => { started = resolve; });
+  const pending = analyzeProvider(payload, async () => ({ ok: true, text: () => {
+    started();
+    return new Promise((_, reject) => controller.signal.addEventListener('abort', () => reject(controller.signal.reason), { once: true }));
+  } }), controller.signal);
+  await reading;
+  controller.abort(new DOMException('Cancelled while reading', 'AbortError'));
+  await assert.rejects(pending, { name: 'AbortError', message: 'Cancelled while reading' });
+});
+
 test('endpoints keep cloud keys on fixed hosts and local APIs on loopback', () => {
   for (const base_url of ['https://evil.example', 'http://127.0.0.1@evil.example', 'http://localhost/?key=secret', 'http://localhost/#x']) {
     assert.throws(() => providerEndpoint({ ...payload, base_url }));
