@@ -91,7 +91,7 @@ Scores are model estimates, not calibrated probabilities. Tied choices are tenta
 | Model providers | LM Studio / OpenAI-compatible APIs, Ollama, OpenAI, Anthropic |
 | Optional Laya service | Python, Laya, Pillow, pytesseract and Tesseract |
 | Build and packaging | Node.js, npm, fflate, Mozilla addons-linter |
-| Tests and CI | Node.js test runner, Playwright, Python unittest, GitHub Actions |
+| Tests and CI | Node.js test runner, Playwright, Selenium WebDriver, Python unittest, GitHub Actions |
 
 ## Development
 

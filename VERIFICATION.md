@@ -1,14 +1,16 @@
 # Tests
 
-Version 0.5.0 passed [Linux CI](https://github.com/kevkoa2106/quizlens/actions/runs/37619682656):
+See [CI results](https://github.com/kevkoa2106/quizlens/actions/workflows/tests.yml) for the current revision.
 
-| Suite | Passed | Skipped |
-| --- | ---: | ---: |
-| Python backend | 32 | 1 |
-| JavaScript | 23 | 0 |
-| Chromium and Firefox | 49 | 1 |
+| Suite | Coverage |
+| --- | --- |
+| Python backend | Authentication, OCR fixtures, local API requests and model-output validation |
+| JavaScript | Input validation, model discovery, profile sanitization, cancellation and ZIP contents |
+| Browser fixtures | Chromium and Firefox panel behavior, late responses, storage failures, image limits and themes |
+| Installed Chrome | Built extension, real DOM capture, host permissions and credential separation |
+| Installed Firefox | ZIP installation with WebDriver, sidebar manifest, real capture, permissions and credential separation |
 
-Tests cover DOM capture, provider requests, image handling, authentication, score validation, stale results, keyboard use, and both browser builds. Mozilla's add-on linter found no errors, warnings, or notices.
+Packaging runs Mozilla's validator and fails on errors or warnings. Browser tests use a local Node server; no Python service is needed for them.
 
 ## Run
 
@@ -23,7 +25,10 @@ npx playwright install chromium firefox
 npm test
 npm run package
 npm run test:browser
+npm run test:firefox-native
 ```
+
+The native Firefox check needs port 8765 free. Selenium Manager obtains Firefox and geckodriver when missing; set `FIREFOX_BINARY` to use a specific Firefox installation. CI supplies a standalone Firefox build.
 
 After full Laya setup, enable the optional checkpoint test:
 
@@ -33,6 +38,6 @@ HF_HOME="$PWD/.cache/huggingface" LAYA_INTEGRATION=1 .venv/bin/python -m unittes
 
 ## Scope
 
-- Chromium tests load the actual extension. Firefox tests use its browser engine with simulated extension APIs; Playwright cannot install Firefox add-ons.
+- Panel fixtures simulate extension APIs in both engines. The installed-browser checks use native APIs; Firefox runs separately through WebDriver.
 - Routine tests simulate model responses and do not call paid APIs or load Laya weights.
-- Live-site permission grants, model accuracy, latency, vision support, and Firefox signing are not verified.
+- Live quiz-site toolbar grants, interactive permission prompts, model accuracy, latency and Firefox signing are not verified.
