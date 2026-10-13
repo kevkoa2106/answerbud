@@ -166,3 +166,17 @@ test('failed session credential write never writes a persistent profile or repor
   expect(await page.evaluate(() => window.savedLocal)).toBeUndefined();
   await expect(page.locator('#save')).toBeEnabled();
 });
+
+test('empty, denied and malformed model lists leave discovery controls usable', async ({ page }) => {
+  await selectLocal(page);
+  for (const response of [{ json: { data: [] } }, { status: 403, json: {} }, { status: 500, json: {} }, { body: 'invalid JSON', contentType: 'application/json' }]) {
+    await page.route('http://127.0.0.1:1234/v1/models', route => route.fulfill(response));
+    await page.locator('#refresh-models').click();
+    await expect(page.locator('#refresh-models')).toBeEnabled();
+    await expect(page.locator('#model-list option')).toHaveCount(0);
+    await expect(page.locator('#cancel')).toBeHidden();
+    if (response.status) await expect(page.locator('#status')).toContainText(`HTTP ${response.status}`);
+    else if (response.json) await expect(page.locator('#status')).toContainText('No models available');
+    await page.unroute('http://127.0.0.1:1234/v1/models');
+  }
+});
