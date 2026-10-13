@@ -57,7 +57,7 @@ class LocalAPITests(unittest.TestCase):
         self.assertFalse(result['calibrated'])
         self.assertEqual(result['method'], 'model-reported estimates')
 
-    def test_explicit_choice_and_short_decisive_prompt(self):
+    def test_explicit_choice_and_response_schema(self):
         type(self).response['choices'][0]['message']['content'] = '{"best_index":1,"probabilities":[0.1,0.9]}'
         result = analyze_local(self.payload)
         self.assertEqual(result['chosen_index'], 1)
