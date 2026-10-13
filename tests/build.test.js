@@ -12,6 +12,8 @@ test('Chrome and Firefox packages use their own supported sidebar manifests', ()
   assert.ok(chrome.background.service_worker);
   assert.ok(chrome.permissions.includes('sidePanel'));
   assert.equal(chrome.side_panel.default_path, 'panel.html');
+  assert.deepEqual(chrome.host_permissions, ['http://127.0.0.1:8765/*']);
+  assert.deepEqual(firefox.host_permissions, ['http://127.0.0.1/*']);
   assert.deepEqual(firefox.background.scripts, ['background.js']);
   assert.equal(firefox.sidebar_action.default_panel, 'panel.html');
   assert.equal(firefox.permissions.includes('sidePanel'), false);

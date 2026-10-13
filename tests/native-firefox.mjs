@@ -28,10 +28,10 @@ try {
       await import(browser.runtime.getURL('panel.js'));
       const { captureDOM } = await import(browser.runtime.getURL('dom.js'));
       const { publicProfile } = await import(browser.runtime.getURL('profiles.js'));
-      const granted = await browser.permissions.contains({ origins: ['http://127.0.0.1:8765/*'] });
-      const denied = await browser.permissions.contains({ origins: ['http://localhost:1234/*'] });
+      const granted = await browser.permissions.contains({ origins: ['http://127.0.0.1/*'] });
+      const denied = await browser.permissions.contains({ origins: ['http://localhost/*'] });
       if (!granted) throw new Error('The installed add-on has not received its required fixture host permission.');
-      const [tab] = await browser.tabs.query({ url: 'http://127.0.0.1:8765/*' });
+      const [tab] = await browser.tabs.query({ url: 'http://127.0.0.1/*' });
       if (!tab) throw new Error('Firefox did not expose the loaded fixture tab to its granted host permission.');
       const frames = await browser.scripting.executeScript({ target: { tabId: tab.id }, func: captureDOM });
       const captured = frames[0].result;

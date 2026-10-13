@@ -8,6 +8,10 @@ for (const target of ['chrome', 'firefox']) {
   await cp(new URL('../LICENSE', import.meta.url), new URL('LICENSE', directory));
   const manifest = JSON.parse(await readFile(new URL('manifest.json', directory), 'utf8'));
   if (target === 'firefox') {
+    manifest.host_permissions = manifest.host_permissions.map(pattern => {
+      const url = new URL(pattern);
+      return `${url.protocol}//${url.hostname}${url.pathname}`;
+    });
     manifest.permissions = manifest.permissions.filter(value => value !== 'sidePanel');
     manifest.background = { scripts: ['background.js'] };
     manifest.sidebar_action = { default_panel: 'panel.html', default_title: 'QuizLens' };
