@@ -1,7 +1,7 @@
 import { parseOptions, validateInput, request, renderAnswers } from './core.js';
 import { captureDOM } from './dom.js';
 import { extensionApi } from './browser-api.js';
-import { analyzeProvider, providerOrigin } from './providers.js';
+import { analyzeProvider, providerOrigin, listProviderModels } from './providers.js';
 
 const byId = id => document.getElementById(id);
 const status = byId('status');
@@ -39,6 +39,7 @@ function updateProvider() {
   byId('provider-note').textContent = cloud ? 'Captured questions and images are sent to this provider using your API key. API usage may incur charges. Your key stays in this browser session; QuizLens has no shared server.' : provider === 'laya' ? 'Laya needs the Python service on this computer. Its token protects the service from website requests.' : 'Calls your model server directly. No QuizLens service or token is needed.';
   byId('api-key-label').textContent = cloud ? 'Provider API key' : 'API key (optional)';
   updateInputMode();
+  byId('model-list').replaceChildren();
 }
 function updateInputMode() {
   byId('text-fields').hidden = imageMode();
@@ -120,6 +121,43 @@ byId('save').addEventListener('click', () => run('Saving settings…', async () 
   await extensionApi.storage.session.set({ token: token.value.trim(), provider: byId('provider').value, base_url: byId('base-url').value.trim(), model: byId('model').value.trim(), api_key: byId('api-key').value.trim(), structured_json: byId('structured-json').checked, no_thinking: byId('no-thinking').checked, max_tokens: Number(byId('max-tokens').value), input_mode: imageMode() ? 'image' : 'text' });
   status.textContent = byId('provider').value === 'laya' ? 'Token saved; provider settings saved for this browser session.' : 'Provider settings saved for this browser session. Ready to capture.';
   byId('settings').open = false;
+}));
+
+function currentSettings() {
+  return { provider: byId('provider').value, base_url: byId('base-url').value.trim(), model: byId('model').value.trim(), api_key: byId('api-key').value.trim(), structured_json: byId('structured-json').checked, no_thinking: byId('no-thinking').checked, max_tokens: Number(byId('max-tokens').value), input_mode: imageMode() ? 'image' : 'text' };
+}
+
+async function allowProvider(settings) {
+  if (settings.provider !== 'laya' && !await extensionApi.permissions.request({ origins: [providerOrigin(settings)] })) throw new Error('Provider access was declined.');
+}
+
+byId('refresh-models').addEventListener('click', () => run('Loading available models…', async () => {
+  const settings = currentSettings();
+  const currentRevision = revision;
+  await allowProvider(settings);
+  const models = await listProviderModels(settings);
+  if (revision !== currentRevision) return;
+  byId('model-list').replaceChildren(...models.map(model => { const option = document.createElement('option'); option.value = model; return option; }));
+  status.textContent = models.length ? `${models.length} models available. Choose a model or enter its identifier.` : 'No models available. Load or download a model in your server, then retry.';
+}));
+
+byId('test-provider').addEventListener('click', () => run('Testing provider settings…', async () => {
+  const settings = currentSettings();
+  const currentRevision = revision;
+  await allowProvider(settings);
+  const payload = { ...settings, question: 'What is 2 + 2?', options: ['4', '5'] };
+  if (settings.input_mode === 'image') {
+    const canvas = document.createElement('canvas');
+    canvas.width = 400; canvas.height = 160;
+    const context = canvas.getContext('2d');
+    context.fillStyle = 'white'; context.fillRect(0, 0, 400, 160);
+    context.fillStyle = 'black'; context.font = '28px sans-serif';
+    context.fillText('What is 2 + 2?', 20, 45); context.fillText('A. 4     B. 5', 20, 110);
+    payload.image = canvas.toDataURL('image/jpeg', .9);
+  }
+  if (settings.provider === 'laya') await request('/analyze', payload, token.value);
+  else await analyzeProvider(payload);
+  if (revision === currentRevision) status.textContent = 'Connection works. The model returned valid answer data with these settings.';
 }));
 
 async function compare(currentRevision) {

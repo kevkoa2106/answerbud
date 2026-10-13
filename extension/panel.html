@@ -16,12 +16,14 @@
       <label for="input-mode">Input mode</label><select id="input-mode"><option value="text">Page text (DOM)</option><option value="image">Image (vision model)</option></select>
       <p>Image mode requires a model that supports images.</p>
       <div id="endpoint-settings"><label for="base-url">API base URL</label><input id="base-url" type="url" value="http://127.0.0.1:1234/v1"></div>
-      <label for="model">Model identifier</label><input id="model" placeholder="Model identifier from your provider">
+      <label for="model">Model identifier</label><input id="model" list="model-list" placeholder="Choose a listed model or enter its identifier"><datalist id="model-list"></datalist>
+      <button id="refresh-models" type="button">Load available models</button>
       <div id="json-settings"><label for="structured-json"><input id="structured-json" type="checkbox" checked> Require JSON output</label></div>
       <div id="thinking-settings"><label for="no-thinking"><input id="no-thinking" type="checkbox" checked> Request non-thinking mode</label><p>Turn off options your model server does not support.</p></div>
       <label for="max-tokens">Output token limit</label><input id="max-tokens" type="number" min="128" max="8192" step="1" value="512">
       <label id="api-key-label" for="api-key">API key (optional)</label><input id="api-key" type="password" autocomplete="off">
     </div>
+    <button id="test-provider" type="button">Test connection</button><p id="connection-note">Tests a sample question using your current settings. Cloud API usage may incur charges.</p>
     <button id="save" type="button">Save settings for this session</button><p>Keys and settings stay in this browser session. Saving requests access only to the selected provider.</p>
   </details>
   <form id="question-form">

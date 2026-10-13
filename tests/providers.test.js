@@ -1,10 +1,24 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { analyzeProvider, decodeAnswer, providerEndpoint, providerOrigin } from '../extension/providers.js';
+import { analyzeProvider, decodeAnswer, providerEndpoint, providerOrigin, listProviderModels } from '../extension/providers.js';
 
 const payload = { provider: 'local_api', base_url: 'http://127.0.0.1:1234/v1', model: 'test', question: '3x9', options: ['32', '27'], max_tokens: 512 };
 const answer = { best_index: 1, probabilities: [.1, .9] };
 const completion = { choices: [{ message: { content: JSON.stringify(answer) } }] };
+
+test('model discovery uses each provider endpoint and credentials without forwarding redirects', async () => {
+  for (const provider of ['local_api', 'ollama', 'openai', 'anthropic']) {
+    const models = await listProviderModels({ ...payload, provider, api_key: 'key' }, async (url, init) => {
+      assert.match(url, provider === 'ollama' ? /\/api\/tags$/ : /\/models$/);
+      assert.equal(init.redirect, 'error'); assert.equal(init.credentials, 'omit');
+      assert.equal(provider === 'anthropic' ? init.headers['x-api-key'] : init.headers.Authorization, provider === 'anthropic' ? 'key' : 'Bearer key');
+      return Response.json(provider === 'ollama' ? { models: [{ name: 'model-b' }, { name: 'model-a' }] } : { data: [{ id: 'model-b' }, { id: 'model-a' }, { id: 'model-a' }, {}] });
+    });
+    assert.deepEqual(models, ['model-a', 'model-b']);
+  }
+  await assert.rejects(listProviderModels({ ...payload, provider: 'openai' }, () => assert.fail('Unexpected request')), /key/);
+  await assert.rejects(listProviderModels(payload, async () => Response.json({})), /invalid model list/);
+});
 
 test('endpoints keep cloud keys on fixed hosts and local APIs on loopback', () => {
   for (const base_url of ['https://evil.example', 'http://127.0.0.1@evil.example', 'http://localhost/?key=secret', 'http://localhost/#x']) {

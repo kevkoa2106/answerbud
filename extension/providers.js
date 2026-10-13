@@ -16,6 +16,20 @@ export function providerOrigin(settings) {
   return `${url.protocol}//${url.hostname}/*`;
 }
 
+export async function listProviderModels(settings, fetcher = fetch) {
+  const endpoint = providerEndpoint(settings).replace(/(?:chat\/completions|api\/chat)$/, settings.provider === 'ollama' ? 'api/tags' : 'models');
+  const key = settings.api_key?.trim() || '';
+  if (['openai', 'anthropic'].includes(settings.provider) && !key) throw new Error('Enter your provider API key first.');
+  if (key.length > 512 || /[\r\n]/.test(key)) throw new Error('Invalid API key.');
+  const headers = settings.provider === 'anthropic' ? { 'x-api-key': key, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' } : key ? { Authorization: `Bearer ${key}` } : {};
+  const response = await fetcher(endpoint, { headers, redirect: 'error', credentials: 'omit', signal: AbortSignal.timeout(15000) });
+  if (!response.ok) throw new Error(`Model list returned HTTP ${response.status}. Check the server, key, and browser access settings.`);
+  const result = await response.json();
+  const rows = settings.provider === 'ollama' ? result.models : result.data;
+  if (!Array.isArray(rows)) throw new Error('The provider returned an invalid model list. You can enter a model identifier manually.');
+  return [...new Set(rows.map(row => settings.provider === 'ollama' ? row.name : row.id).filter(id => typeof id === 'string' && id.length > 0 && id.length <= 200))].sort();
+}
+
 export function decodeAnswer(content, payload) {
   if (typeof content !== 'string') throw new Error('The model returned no answer text.');
   const fenced = /^\s*```(?:json)?\s*([\s\S]*?)\s*```\s*$/.exec(content);
