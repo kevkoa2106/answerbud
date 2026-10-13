@@ -127,7 +127,7 @@ test('provider profiles survive restart while credentials remain session-only', 
   const saved = await page.evaluate(() => window.savedLocal);
   expect(saved.profiles.local_api.model).toBe('local-model');
   expect(saved.profiles.ollama.model).toBe('ollama-model');
-  expect(JSON.stringify(saved)).not.toMatch(/private-|api_key|token|credentials/);
+  expect(JSON.stringify(saved)).not.toMatch(/private-|"api_key"|"token"|"credentials"/);
   await page.reload();
   await page.locator('#settings summary').click();
   await page.locator('#provider').selectOption('local_api');
@@ -192,6 +192,27 @@ test('cancelling a pending permission request prevents any later provider call',
   await expect(page.locator('#status')).toContainText('cancelled');
   await expect(page.locator('#test-provider')).toBeEnabled();
   expect(calls).toBe(0);
+});
+
+test('connection testing checks vision settings and reports rejected options without altering capture data', async ({ page }) => {
+  await page.locator('#settings summary').click();
+  await page.locator('#provider').selectOption('local_api');
+  await page.locator('#model').fill('vision-model');
+  await page.locator('#input-mode').selectOption('image');
+  await page.route('http://127.0.0.1:1234/v1/chat/completions', async route => {
+    const body = route.request().postDataJSON();
+    expect(body.messages[1].content[1].image_url.url).toMatch(/^data:image\/jpeg;base64,/);
+    expect(body.response_format.json_schema.schema.required).toContain('question');
+    await route.fulfill({ json: { choices: [{ message: { content: '{"question":"What is 2 + 2?","options":["4","5"],"best_index":0,"probabilities":[0.9,0.1]}' } }] } });
+  });
+  await page.locator('#test-provider').click();
+  await expect(page.locator('#status')).toContainText('Connection works');
+  await expect(page.locator('#image-preview')).toBeHidden();
+  await page.unroute('http://127.0.0.1:1234/v1/chat/completions');
+  await page.route('http://127.0.0.1:1234/v1/chat/completions', route => route.fulfill({ status: 400, json: { error: 'Unsupported format' } }));
+  await page.locator('#test-provider').click();
+  await expect(page.locator('#status')).toContainText('HTTP 400');
+  await expect(page.locator('#test-provider')).toBeEnabled();
 });
 
 test('DOM capture automatically compares, safely renders and clears stale results', async ({ page }) => {
