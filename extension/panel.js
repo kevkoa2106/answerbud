@@ -106,7 +106,10 @@ byId('provider').addEventListener('change', () => {
   restoreProfile(activeProvider);
   clearResult();
 });
-for (const id of ['base-url', 'model', 'api-key', 'structured-json', 'no-thinking', 'max-tokens']) byId(id).addEventListener('input', clearResult);
+for (const id of ['base-url', 'model', 'api-key', 'token', 'structured-json', 'no-thinking', 'max-tokens']) byId(id).addEventListener('input', () => {
+  if (['base-url', 'api-key'].includes(id)) byId('model-list').replaceChildren();
+  clearResult();
+});
 if (token.value) status.textContent = 'Capture a question or type one below.';
 
 function clearResult() {
@@ -177,7 +180,7 @@ byId('refresh-models').addEventListener('click', () => run('Loading available mo
   signal.throwIfAborted();
   const models = await listProviderModels(settings, fetch, signal);
   signal.throwIfAborted();
-  if (revision !== currentRevision) return;
+  if (revision !== currentRevision) { status.textContent = 'Settings changed. Load the model list again.'; return; }
   byId('model-list').replaceChildren(...models.map(model => { const option = document.createElement('option'); option.value = model; return option; }));
   status.textContent = models.length ? `${models.length} models available. Choose a model or enter its identifier.` : 'No models available. Load or download a model in your server, then retry.';
 }));
