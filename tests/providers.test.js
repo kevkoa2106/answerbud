@@ -133,3 +133,12 @@ test('complete constrained JSON in reasoning_content is accepted without mining 
   assert.equal(result.chosen_index, 1);
   await assert.rejects(analyzeProvider(payload, async () => Response.json({ choices: [{ message: { reasoning_content: 'Thinking: ' + JSON.stringify(answer) } }] })), /complete answer JSON/);
 });
+
+test('user cancellation reaches model requests and retains its abort reason', async () => {
+  const controller = new AbortController();
+  const pending = analyzeProvider(payload, (_, init) => new Promise((_, reject) => {
+    init.signal.addEventListener('abort', () => reject(init.signal.reason), { once: true });
+  }), controller.signal);
+  controller.abort(new DOMException('Cancelled', 'AbortError'));
+  await assert.rejects(pending, { name: 'AbortError', message: 'Cancelled' });
+});

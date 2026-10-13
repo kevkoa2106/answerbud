@@ -33,6 +33,15 @@ test('timeout errors explain recovery instead of reporting a disconnected servic
   }), /Processing timed out/);
 });
 
+test('Laya requests preserve user cancellation rather than reporting a connection error', async () => {
+  const controller = new AbortController();
+  const pending = request('/analyze', {}, 'token', (_, init) => new Promise((_, reject) => {
+    init.signal.addEventListener('abort', () => reject(init.signal.reason), { once: true });
+  }), controller.signal);
+  controller.abort(new DOMException('Cancelled', 'AbortError'));
+  await assert.rejects(pending, { name: 'AbortError', message: 'Cancelled' });
+});
+
 test('manifest grants temporary DOM access without unrestricted website access', async () => {
   const { readFile } = await import('node:fs/promises');
   const manifest = JSON.parse(await readFile(new URL('../extension/manifest.json', import.meta.url), 'utf8'));

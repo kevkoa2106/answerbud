@@ -85,6 +85,115 @@ test('unavailable theme storage falls back without blocking model settings', asy
   await expect(page.locator('#provider')).toHaveValue('laya');
 });
 
+test('discovers models and tests current settings without submitting the entered question', async ({ page }) => {
+  await page.locator('#settings summary').click();
+  await page.locator('#question').fill('Private question that must not be sent');
+  for (const provider of ['local_api', 'ollama', 'openai', 'anthropic']) {
+    await page.locator('#provider').selectOption(provider);
+    await page.locator('#api-key').fill('test-key');
+    const base = provider === 'ollama' ? 'http://127.0.0.1:11434' : provider === 'local_api' ? 'http://127.0.0.1:1234' : provider === 'openai' ? 'https://api.openai.com' : 'https://api.anthropic.com';
+    await page.route(`${base}/**`, async route => {
+      if (route.request().method() === 'GET') {
+        await route.fulfill({ json: provider === 'ollama' ? { models: [{ name: 'test-model' }] } : { data: [{ id: 'test-model' }] } });
+      } else {
+        const body = route.request().postDataJSON();
+        expect(JSON.stringify(body)).toContain('What is 2 + 2?');
+        expect(JSON.stringify(body)).not.toContain('Private question');
+        const content = JSON.stringify({ best_index: 0, probabilities: [.9, .1] });
+        await route.fulfill({ json: provider === 'anthropic' ? { content: [{ type: 'text', text: content }] } : provider === 'ollama' ? { message: { content } } : { choices: [{ message: { content } }] } });
+      }
+    });
+    await page.locator('#refresh-models').click();
+    await expect(page.locator('#model-list option')).toHaveAttribute('value', 'test-model');
+    await page.locator('#model').fill('test-model');
+    await page.locator('#test-provider').click();
+    await expect(page.locator('#status')).toContainText('Connection works');
+    await expect(page.locator('#answers li')).toHaveCount(0);
+    await page.unroute(`${base}/**`);
+  }
+});
+
+test('provider profiles survive restart while credentials remain session-only', async ({ page }) => {
+  await page.locator('#settings summary').click();
+  await page.locator('#provider').selectOption('local_api');
+  await page.locator('#model').fill('local-model');
+  await page.locator('#api-key').fill('private-local-key');
+  await page.locator('#save').click();
+  await page.locator('#settings summary').click();
+  await page.locator('#provider').selectOption('ollama');
+  await page.locator('#model').fill('ollama-model');
+  await page.locator('#api-key').fill('private-ollama-key');
+  await page.locator('#save').click();
+  const saved = await page.evaluate(() => window.savedLocal);
+  expect(saved.profiles.local_api.model).toBe('local-model');
+  expect(saved.profiles.ollama.model).toBe('ollama-model');
+  expect(JSON.stringify(saved)).not.toMatch(/private-|api_key|token|credentials/);
+  await page.reload();
+  await page.locator('#settings summary').click();
+  await page.locator('#provider').selectOption('local_api');
+  await expect(page.locator('#model')).toHaveValue('local-model');
+  await expect(page.locator('#api-key')).toHaveValue('private-local-key');
+  await page.evaluate(() => sessionStorage.removeItem('test-session'));
+  await page.addInitScript(() => { chrome.storage.session.get = async () => ({}); });
+  await page.reload();
+  await page.locator('#settings summary').click();
+  await expect(page.locator('#provider')).toHaveValue('ollama');
+  await expect(page.locator('#model')).toHaveValue('ollama-model');
+  await expect(page.locator('#api-key')).toHaveValue('');
+  await page.locator('#provider').selectOption('local_api');
+  await expect(page.locator('#model')).toHaveValue('local-model');
+  await expect(page.locator('#api-key')).toHaveValue('');
+});
+
+test('cancellation aborts the request, restores controls and allows a fresh comparison', async ({ page }) => {
+  await page.locator('#settings summary').click();
+  await page.locator('#provider').selectOption('local_api');
+  await page.locator('#model').fill('test-model');
+  await page.evaluate(() => {
+    const original = window.fetch;
+    window.fetch = (url, init) => {
+      init.signal.addEventListener('abort', () => { window.requestAborted = true; }, { once: true });
+      return original(url, init);
+    };
+  });
+  let release;
+  const waiting = new Promise(resolve => { release = resolve; });
+  let calls = 0;
+  await page.route('http://127.0.0.1:1234/v1/chat/completions', async route => {
+    calls++;
+    if (calls === 1) await waiting;
+    await route.fulfill({ json: { choices: [{ message: { content: '{"best_index":0,"probabilities":[0.9,0.1]}' } }] } }).catch(() => {});
+  });
+  await page.locator('#capture').click();
+  await expect(page.locator('#elapsed')).toContainText('Elapsed:');
+  await expect(page.locator('#cancel')).toBeVisible();
+  await page.locator('#cancel').click();
+  await expect(page.locator('#status')).toContainText('cancelled');
+  expect(await page.evaluate(() => window.requestAborted)).toBe(true);
+  await expect(page.locator('#capture')).toBeEnabled();
+  await expect(page.locator('#cancel')).toBeHidden();
+  release();
+  await page.locator('#capture').click();
+  await expect(page.locator('#status')).toContainText('Compared with test-model');
+  await expect(page.locator('.chosen-answer')).toContainText('Ciphertext');
+  expect(calls).toBe(2);
+});
+
+test('cancelling a pending permission request prevents any later provider call', async ({ page }) => {
+  await page.locator('#settings summary').click();
+  await page.locator('#provider').selectOption('local_api');
+  await page.locator('#model').fill('test-model');
+  await page.evaluate(() => { chrome.permissions.request = () => new Promise(resolve => { window.allowAccess = resolve; }); });
+  let calls = 0;
+  await page.route('http://127.0.0.1:1234/**', route => { calls++; return route.abort(); });
+  await page.locator('#test-provider').click();
+  await page.locator('#cancel').click();
+  await page.evaluate(() => window.allowAccess(true));
+  await expect(page.locator('#status')).toContainText('cancelled');
+  await expect(page.locator('#test-provider')).toBeEnabled();
+  expect(calls).toBe(0);
+});
+
 test('DOM capture automatically compares, safely renders and clears stale results', async ({ page }) => {
   const errors = [];
   page.on('pageerror', error => errors.push(error.message));
