@@ -49,7 +49,7 @@ try {
   });
   assert.equal(result.error, undefined);
   assert.equal(result.manifest.sidebar_action.default_panel, `moz-extension://${uuid}/panel.html`);
-  assert.equal(result.manifest.background.service_worker, undefined);
+  assert.ok(result.manifest.background.service_worker == null, 'Firefox must not register a service worker');
   assert.equal(result.granted, true);
   assert.equal(result.denied, false);
   assert.deepEqual(result.captured.options, ['Ciphertext', 'Plaintext']);
