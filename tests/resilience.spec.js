@@ -146,3 +146,23 @@ test('malformed saved profile values fall back to usable defaults', async ({ pag
   await expect(page.locator('#input-mode')).toHaveValue('text');
   await expect(page.locator('#structured-json')).toBeChecked();
 });
+
+test('session storage read failures leave persisted public profiles usable', async ({ page }) => {
+  await page.evaluate(() => sessionStorage.setItem('test-local', JSON.stringify({ last_provider: 'local_api', profiles: { local_api: { model: 'saved-model' } } })));
+  await page.addInitScript(() => { chrome.storage.session.get = async () => { throw new Error('Read failed'); }; });
+  await page.reload();
+  await page.locator('#settings summary').click();
+  await expect(page.locator('#model')).toHaveValue('saved-model');
+  await expect(page.locator('#api-key')).toHaveValue('');
+  await expect(page.locator('#capture')).toBeEnabled();
+});
+
+test('failed session credential write never writes a persistent profile or reports success', async ({ page }) => {
+  await selectLocal(page);
+  await page.locator('#api-key').fill('private-key');
+  await page.evaluate(() => { chrome.storage.session.set = async () => { throw new Error('Session write failed'); }; });
+  await page.locator('#save').click();
+  await expect(page.locator('#status')).toContainText('Session write failed');
+  expect(await page.evaluate(() => window.savedLocal)).toBeUndefined();
+  await expect(page.locator('#save')).toBeEnabled();
+});

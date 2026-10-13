@@ -75,11 +75,11 @@ async function prepareImage(data) {
     return canvas.toDataURL('image/jpeg', .9);
   } finally { bitmap.close(); }
 }
-const settings = await extensionApi.storage.session.get(['token', 'provider', 'base_url', 'model', 'api_key', 'structured_json', 'no_thinking', 'max_tokens', 'input_mode']);
+const settings = await extensionApi.storage.session.get(['token', 'provider', 'base_url', 'model', 'api_key', 'structured_json', 'no_thinking', 'max_tokens', 'input_mode']).catch(() => ({}));
 let stored = {};
 try { stored = await extensionApi.storage.local.get(['profiles', 'last_provider']); } catch { /* Use session settings when local storage is unavailable. */ }
 const profiles = Object.fromEntries(providers.map(provider => [provider, publicProfile(stored.profiles?.[provider] || {})]));
-const { credentials: savedCredentials = {} } = await extensionApi.storage.session.get('credentials');
+const { credentials: savedCredentials = {} } = await extensionApi.storage.session.get('credentials').catch(() => ({}));
 const credentials = { ...savedCredentials };
 let activeProvider = providers.includes(settings.provider) ? settings.provider : providers.includes(stored.last_provider) ? stored.last_provider : 'local_api';
 if (!Object.keys(profiles[activeProvider]).length) profiles[activeProvider] = publicProfile(settings);
@@ -89,8 +89,8 @@ function restoreProfile(provider) {
   byId('provider').value = provider;
   byId('base-url').value = profile.base_url || (provider === 'ollama' ? 'http://127.0.0.1:11434' : 'http://127.0.0.1:1234/v1');
   byId('model').value = profile.model || '';
-  byId('api-key').value = credentials[provider]?.api_key || '';
-  token.value = credentials[provider]?.token || '';
+  byId('api-key').value = typeof credentials[provider]?.api_key === 'string' ? credentials[provider].api_key : '';
+  token.value = typeof credentials[provider]?.token === 'string' ? credentials[provider].token : '';
   byId('structured-json').checked = profile.structured_json !== false;
   byId('no-thinking').checked = profile.no_thinking !== false;
   byId('max-tokens').value = profile.max_tokens || 512;
@@ -174,6 +174,7 @@ async function allowProvider(settings) {
 }
 
 byId('refresh-models').addEventListener('click', () => run('Loading available models…', async signal => {
+  byId('model-list').replaceChildren();
   const settings = currentSettings();
   const currentRevision = revision;
   await allowProvider(settings);
