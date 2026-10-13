@@ -1,11 +1,12 @@
-import test from 'node:test';
+import test, { before } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { unzipSync, strFromU8 } from 'fflate';
 
+before(() => execFileSync(process.execPath, ['scripts/package.mjs']));
+
 test('Chrome and Firefox packages use their own supported sidebar manifests', () => {
-  execFileSync(process.execPath, ['scripts/build.mjs']);
   const chrome = JSON.parse(readFileSync('dist/chrome/manifest.json'));
   const firefox = JSON.parse(readFileSync('dist/firefox/manifest.json'));
   assert.ok(chrome.background.service_worker);
@@ -19,7 +20,6 @@ test('Chrome and Firefox packages use their own supported sidebar manifests', ()
 });
 
 test('store ZIPs contain runtime files and a browser-specific manifest at the root', () => {
-  execFileSync(process.execPath, ['scripts/package.mjs']);
   const expectedFiles = ['LICENSE', 'background.js', 'browser-api.js', 'core.js', 'dom.js', 'manifest.json', 'panel.css', 'panel.html', 'panel.js', 'profiles.js', 'providers.js'];
   for (const target of ['chrome', 'firefox']) {
     const files = unzipSync(readFileSync(`dist/quizlens-${target}.zip`));

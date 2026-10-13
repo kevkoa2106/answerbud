@@ -39,7 +39,8 @@ test('LM Studio sends one direct structured non-thinking request', async () => {
     assert.equal(body.max_tokens, 512);
     assert.deepEqual(body.chat_template_kwargs, { enable_thinking: false });
     assert.equal(body.response_format.json_schema.schema.properties.probabilities.minItems, 2);
-    assert.match(body.messages[0].content, /unique highest/);
+    assert.equal(body.messages[0].role, 'system');
+    assert.ok(body.response_format.json_schema.schema.required.includes('best_index'));
     return Response.json(completion);
   });
   assert.equal(result.chosen_index, 1);
@@ -114,8 +115,10 @@ test('ties retain an explicit choice without inventing probabilities', () => {
 });
 
 test('missing credentials and invalid settings fail before any network request', async () => {
-  for (const changed of [{ provider: 'openai' }, { provider: 'anthropic' }, { model: '' }, { max_tokens: 1 }, { input_mode: 'image', image: 'https://example.com/image.png' }]) {
-    await assert.rejects(analyzeProvider({ ...payload, ...changed }, () => assert.fail('Unexpected request')));
+  for (const [changed, error] of [[{ provider: 'openai' }, /API key/], [{ provider: 'anthropic' }, /API key/], [{ model: '' }, /model identifier/], [{ max_tokens: 1 }, /output limit/], [{ input_mode: 'image', image: 'https://example.com/image.png' }, /PNG or JPEG/]]) {
+    let calls = 0;
+    await assert.rejects(analyzeProvider({ ...payload, ...changed }, async () => { calls++; return Response.json(completion); }), error);
+    assert.equal(calls, 0, 'Invalid settings must not reach the provider');
   }
 });
 

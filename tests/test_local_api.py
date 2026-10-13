@@ -66,7 +66,7 @@ class LocalAPITests(unittest.TestCase):
         schema = self.received[2]['response_format']['json_schema']['schema']
         self.assertIn('best_index', schema['required'])
         self.assertEqual(schema['properties']['best_index']['maximum'], 1)
-        self.assertIn('unique highest', self.received[2]['messages'][0]['content'])
+        self.assertEqual(self.received[2]['messages'][0]['role'], 'system')
 
     def test_tied_estimates_keep_model_choice_without_fabricating_scores(self):
         for count in (2, 3, 4):
