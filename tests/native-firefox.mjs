@@ -25,10 +25,16 @@ try {
       const { publicProfile } = await import(browser.runtime.getURL('profiles.js'));
       const granted = await browser.permissions.contains({ origins: ['http://127.0.0.1:8765/*'] });
       const denied = await browser.permissions.contains({ origins: ['http://localhost:1234/*'] });
+      if (!granted) throw new Error('The installed add-on has not received its required fixture host permission.');
       const tab = await browser.tabs.create({ url: 'http://127.0.0.1:8765/quiz', active: false });
       let captured;
       try {
         for (let attempt = 0; attempt < 50; attempt++) {
+          const current = await browser.tabs.get(tab.id);
+          if (current.status !== 'complete' || !current.url?.startsWith('http://127.0.0.1:8765/')) {
+            await new Promise(resolve => setTimeout(resolve, 100));
+            continue;
+          }
           const frames = await browser.scripting.executeScript({ target: { tabId: tab.id }, func: captureDOM });
           captured = frames[0].result;
           if (captured.question) break;
