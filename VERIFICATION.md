@@ -1,6 +1,6 @@
 # Tests
 
-See [CI results](https://github.com/kevkoa2106/quizlens/actions/workflows/tests.yml) for the current revision.
+See [CI results](https://github.com/kevkoa2106/answerbud/actions/workflows/tests.yml) for the current revision.
 
 | Suite | Coverage |
 | --- | --- |

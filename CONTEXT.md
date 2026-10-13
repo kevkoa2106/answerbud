@@ -1,6 +1,6 @@
-# QuizLens
+# AnswerBud
 
-QuizLens captures multiple-choice questions and compares their answer options with a selected model.
+AnswerBud captures multiple-choice questions and compares their answer options with a selected model.
 
 ## Language
 
