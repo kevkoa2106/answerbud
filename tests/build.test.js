@@ -20,7 +20,7 @@ test('Chrome and Firefox packages use their own supported sidebar manifests', ()
 
 test('store ZIPs contain runtime files and a browser-specific manifest at the root', () => {
   execFileSync(process.execPath, ['scripts/package.mjs']);
-  const expectedFiles = ['LICENSE', 'background.js', 'browser-api.js', 'core.js', 'dom.js', 'manifest.json', 'panel.css', 'panel.html', 'panel.js', 'providers.js'];
+  const expectedFiles = ['LICENSE', 'background.js', 'browser-api.js', 'core.js', 'dom.js', 'manifest.json', 'panel.css', 'panel.html', 'panel.js', 'profiles.js', 'providers.js'];
   for (const target of ['chrome', 'firefox']) {
     const files = unzipSync(readFileSync(`dist/quizlens-${target}.zip`));
     assert.deepEqual(Object.keys(files).sort(), expectedFiles);

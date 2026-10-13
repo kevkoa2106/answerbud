@@ -2,6 +2,7 @@ import { parseOptions, validateInput, request, renderAnswers } from './core.js';
 import { captureDOM } from './dom.js';
 import { extensionApi } from './browser-api.js';
 import { analyzeProvider, providerOrigin, listProviderModels } from './providers.js';
+import { providers, publicProfile } from './profiles.js';
 
 const byId = id => document.getElementById(id);
 const status = byId('status');
@@ -75,22 +76,34 @@ async function prepareImage(data) {
   } finally { bitmap.close(); }
 }
 const settings = await extensionApi.storage.session.get(['token', 'provider', 'base_url', 'model', 'api_key', 'structured_json', 'no_thinking', 'max_tokens', 'input_mode']);
-token.value = settings.token || '';
-byId('provider').value = settings.provider || 'local_api';
-byId('base-url').value = settings.base_url || 'http://127.0.0.1:1234/v1';
-byId('model').value = settings.model || '';
-byId('api-key').value = settings.api_key || '';
-byId('structured-json').checked = settings.structured_json !== false;
-byId('no-thinking').checked = settings.no_thinking !== false;
-byId('max-tokens').value = settings.max_tokens || 512;
-byId('input-mode').value = settings.input_mode || 'text';
-updateProvider();
+let stored = {};
+try { stored = await extensionApi.storage.local.get(['profiles', 'last_provider']); } catch { /* Use session settings when local storage is unavailable. */ }
+const profiles = Object.fromEntries(providers.map(provider => [provider, publicProfile(stored.profiles?.[provider] || {})]));
+const { credentials: savedCredentials = {} } = await extensionApi.storage.session.get('credentials');
+const credentials = { ...savedCredentials };
+let activeProvider = providers.includes(settings.provider) ? settings.provider : providers.includes(stored.last_provider) ? stored.last_provider : 'local_api';
+if (!Object.keys(profiles[activeProvider]).length) profiles[activeProvider] = publicProfile(settings);
+if (!credentials[activeProvider]) credentials[activeProvider] = { api_key: settings.api_key || '', token: settings.token || '' };
+function restoreProfile(provider) {
+  const profile = profiles[provider];
+  byId('provider').value = provider;
+  byId('base-url').value = profile.base_url || (provider === 'ollama' ? 'http://127.0.0.1:11434' : 'http://127.0.0.1:1234/v1');
+  byId('model').value = profile.model || '';
+  byId('api-key').value = credentials[provider]?.api_key || '';
+  token.value = credentials[provider]?.token || '';
+  byId('structured-json').checked = profile.structured_json !== false;
+  byId('no-thinking').checked = profile.no_thinking !== false;
+  byId('max-tokens').value = profile.max_tokens || 512;
+  byId('input-mode').value = profile.input_mode || 'text';
+  updateProvider();
+}
+restoreProfile(activeProvider);
 byId('input-mode').addEventListener('change', () => { updateInputMode(); clearResult(); });
 byId('provider').addEventListener('change', () => {
-  byId('api-key').value = '';
-  byId('model').value = '';
-  byId('base-url').value = byId('provider').value === 'ollama' ? 'http://127.0.0.1:11434' : 'http://127.0.0.1:1234/v1';
-  updateProvider();
+  profiles[activeProvider] = publicProfile(currentSettings());
+  credentials[activeProvider] = { api_key: byId('api-key').value, token: token.value };
+  activeProvider = byId('provider').value;
+  restoreProfile(activeProvider);
   clearResult();
 });
 for (const id of ['base-url', 'model', 'api-key', 'structured-json', 'no-thinking', 'max-tokens']) byId(id).addEventListener('input', clearResult);
@@ -114,12 +127,16 @@ async function run(message, action) {
 }
 
 byId('save').addEventListener('click', () => run('Saving settings…', async () => {
-  if (byId('provider').value !== 'laya') {
-    const origin = providerOrigin({ provider: byId('provider').value, base_url: byId('base-url').value.trim() });
-    if (!await extensionApi.permissions.request({ origins: [origin] })) throw new Error('Provider access was declined. Save settings and allow access to compare.');
-  }
-  await extensionApi.storage.session.set({ token: token.value.trim(), provider: byId('provider').value, base_url: byId('base-url').value.trim(), model: byId('model').value.trim(), api_key: byId('api-key').value.trim(), structured_json: byId('structured-json').checked, no_thinking: byId('no-thinking').checked, max_tokens: Number(byId('max-tokens').value), input_mode: imageMode() ? 'image' : 'text' });
-  status.textContent = byId('provider').value === 'laya' ? 'Token saved; provider settings saved for this browser session.' : 'Provider settings saved for this browser session. Ready to capture.';
+  const selected = currentSettings();
+  const currentRevision = revision;
+  const secret = { api_key: selected.api_key, token: token.value.trim() };
+  await allowProvider(selected);
+  if (revision !== currentRevision) throw new Error('Settings changed while requesting access. Save again.');
+  profiles[selected.provider] = publicProfile(selected);
+  credentials[selected.provider] = secret;
+  await extensionApi.storage.session.set({ ...selected, token: secret.token, credentials });
+  await extensionApi.storage.local.set({ profiles: Object.fromEntries(providers.map(provider => [provider, publicProfile(profiles[provider])])), last_provider: selected.provider });
+  status.textContent = selected.provider === 'laya' ? 'Token saved for this browser session; provider profile saved on this device.' : 'Provider profile saved on this device. Keys stay in this browser session.';
   byId('settings').open = false;
 }));
 
