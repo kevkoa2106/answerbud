@@ -33,12 +33,14 @@ For Firefox Add-ons submissions, upload **quizlens-firefox.zip** from the releas
 ## Use
 
 1. Open a quiz tab and click the QuizLens toolbar icon.
-2. In **Model settings**, choose a provider, enter the model and credentials, then save.
+2. In **Model settings**, choose a provider and enter credentials if needed. Use **Load available models** or enter an identifier, then **Test connection** and **Save provider profile**.
 3. Choose **Capture this tab** to read the DOM and compare automatically. Correct any text and choose **Compare answers** to retry.
 
 For image or canvas questions, select **Image (vision model)** and capture the tab or upload a PNG/JPEG. Your model must support images. QuizLens does not click or submit answers.
 
 In **Appearance**, choose green, blue, red, or grey. Colours follow your browser's light or dark mode; the choice stays on this device.
+
+Each provider remembers its model settings. Keys and tokens last for the browser session. During capture or analysis, **Cancel request** stops waiting and lets you retry; the provider may continue computing.
 
 ## Models
 
@@ -74,7 +76,7 @@ Keep the service running, select Laya, and paste its printed token. First use do
 
 ## Data and limits
 
-Model settings and keys last for the browser session. The colour scheme is saved locally until the extension is removed. Captures go to your selected provider; cloud APIs may charge for usage. Local servers may also use cloud models, depending on their configuration.
+Provider profiles and the colour scheme stay on this device. Keys and tokens last for the browser session. Captures go to your selected provider; cloud APIs may charge for usage, including connection tests. Local servers may also use cloud models, depending on their configuration.
 
 See the [privacy policy](PRIVACY.md) for data handling and deletion controls.
 
