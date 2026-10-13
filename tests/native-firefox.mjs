@@ -26,19 +26,22 @@ try {
       const granted = await browser.permissions.contains({ origins: ['http://127.0.0.1:8765/*'] });
       const denied = await browser.permissions.contains({ origins: ['http://localhost:1234/*'] });
       if (!granted) throw new Error('The installed add-on has not received its required fixture host permission.');
-      const tab = await browser.tabs.create({ url: 'http://127.0.0.1:8765/quiz', active: false });
+      const tab = await browser.tabs.create({ url: 'http://127.0.0.1:8765/quiz', active: true });
       let captured;
       try {
         for (let attempt = 0; attempt < 50; attempt++) {
-          const current = await browser.tabs.get(tab.id);
-          if (current.status !== 'complete' || !current.url?.startsWith('http://127.0.0.1:8765/')) {
-            await new Promise(resolve => setTimeout(resolve, 100));
-            continue;
+          try {
+            const frames = await browser.scripting.executeScript({ target: { tabId: tab.id }, func: captureDOM });
+            captured = frames[0].result;
+          } catch (error) {
+            if (!/Missing host permission/.test(error.message)) throw error;
           }
-          const frames = await browser.scripting.executeScript({ target: { tabId: tab.id }, func: captureDOM });
-          captured = frames[0].result;
-          if (captured.question) break;
+          if (captured?.question) break;
           await new Promise(resolve => setTimeout(resolve, 100));
+        }
+        if (!captured?.question) {
+          const current = await browser.tabs.get(tab.id);
+          throw new Error(`Fixture capture did not become ready: ${JSON.stringify({ status: current.status, url: current.url, captured })}`);
         }
       } finally { await browser.tabs.remove(tab.id); }
       const profiles = { local_api: publicProfile({ model: 'native-model', api_key: 'private-native-key' }) };
